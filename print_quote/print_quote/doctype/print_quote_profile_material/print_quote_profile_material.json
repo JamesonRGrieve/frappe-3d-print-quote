@@ -1,0 +1,21 @@
+{
+ "actions": [],
+ "creation": "2026-10-05 14:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["material"],
+ "fields": [
+  {"fieldname": "material", "fieldtype": "Link", "in_list_view": 1, "label": "Material", "options": "Print Material", "reqd": 1}
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-05 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Print Quote",
+ "name": "Print Quote Profile Material",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
