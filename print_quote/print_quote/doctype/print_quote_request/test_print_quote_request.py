@@ -215,6 +215,35 @@ class TestQuoteRequest(FrappeTestCase):
 				PROFILE, self.contact, [Upload("a.stl", ok, MATERIAL, "", 1)] * 4
 			)  # too many files
 
+	def test_guest_reads_profile_and_requests_a_quote(self):
+		from print_quote import api
+
+		frappe.set_user("Guest")
+		offered = api.get_profile(PROFILE)
+		self.assertEqual([m["name"] for m in offered["materials"]], [MATERIAL])
+		self.assertEqual(offered["materials"][0]["colours"], ["Black", "White"])
+		with self.assertRaises(frappe.DoesNotExistError):
+			api.get_profile("_Test No Such Profile")
+		result = api.request_quote(
+			PROFILE, self.contact, [Upload("a.stl", ascii_stl(cube(10)), MATERIAL, "", 1)]
+		)
+		self.assertEqual(frappe.session.user, "Guest")  # the visitor's session is restored
+		self.assertTrue(frappe.db.get_value("Print Quote Request", result["request"], "quotation"))
+		self.assertEqual(result["parts"][0]["material"], MATERIAL)
+		with self.assertRaises(frappe.ValidationError):  # still validated, still restored on failure
+			api.request_quote(PROFILE, self.contact, [Upload("a.step", b"x", MATERIAL, "", 1)])
+		self.assertEqual(frappe.session.user, "Guest")
+		frappe.set_user("Administrator")
+
+	def test_disabled_profile_is_hidden_from_guests(self):
+		from print_quote import api
+
+		frappe.db.set_value("Print Quote Profile", PROFILE, "enabled", 0)
+		frappe.set_user("Guest")
+		with self.assertRaises(frappe.DoesNotExistError):
+			api.get_profile(PROFILE)
+		frappe.set_user("Administrator")
+
 	def test_minimum_order_is_a_quotation_line(self):
 		frappe.db.set_value("Print Quote Profile", PROFILE, {"minimum_order": 50, "setup_fee": 0})
 		request = create_request(

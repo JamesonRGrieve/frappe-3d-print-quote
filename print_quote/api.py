@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Public endpoints for the quote widget. Uploads are accepted here, with this app's own checks
 (extension, size, count, model validity) and a per-IP rate limit, rather than by enabling Frappe's
-site-wide guest file uploads."""
+site-wide guest file uploads.
+
+A visitor is the Guest user, who has no access to Lead or Quotation. ERPNext re-reads the Lead with
+the session user's permissions while validating the Quotation (``get_lead_details``), so a
+per-document ``ignore_permissions`` cannot reach it: the request is built as Administrator, inside
+this boundary only, after the visitor's input has passed this app's own checks."""
 
 import json
+from contextlib import contextmanager
 
 import frappe
 from frappe import _
@@ -13,6 +19,18 @@ from print_quote.quote import Upload, create_request
 
 SUBMIT_LIMIT_PER_HOUR = 10
 SECONDS_PER_HOUR = 3600
+QUOTE_BUILDER_USER = "Administrator"
+
+
+@contextmanager
+def as_quote_builder():
+	"""Run as the quote builder, always restoring the visitor's session user."""
+	visitor = frappe.session.user
+	frappe.set_user(QUOTE_BUILDER_USER)
+	try:
+		yield
+	finally:
+		frappe.set_user(visitor)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -63,8 +81,15 @@ def submit(profile, contact_name, email, parts, phone=None, organization=None, n
 			)
 		)
 	contact = {"contact_name": contact_name, "email": email, "phone": phone, "organization": organization}
-	request = create_request(profile, contact, uploads, notes)
+	result = request_quote(profile, contact, uploads, notes)
 	frappe.db.commit()
+	return result
+
+
+def request_quote(profile, contact, uploads, notes=None):
+	"""Build the request, Lead and Quotation for a visitor; return what the widget shows."""
+	with as_quote_builder():
+		request = create_request(profile, contact, uploads, notes)
 	company, review = frappe.db.get_value("Print Quote Profile", profile, ["company", "review_before_send"])
 	return {
 		"request": request.name,
